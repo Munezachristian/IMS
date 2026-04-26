@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Issues - Airtel Inventory</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Issue Tracking</h1>
+        
+        <nav class="nav-menu">
+            <a href="/">Dashboard</a>
+            <a href="/devices">Devices</a>
+            <a href="/employees">Employees</a>
+            <a href="/assignments">Assignments</a>
+            <a href="/issues">Issues</a>
+            <a href="/reports">Reports</a>
+            <a href="/logout" style="background: #dc3545;">Logout</a>
+        </nav>
+
+        <div class="toolbar">
+            <button class="btn-primary" onclick="showReportForm()">Report Issue</button>
+            <button class="btn-secondary" onclick="loadIssues()">Refresh</button>
+            <select id="filterStatus" onchange="filterIssues()">
+                <option value="">All Issues</option>
+                <option value="PENDING">Pending</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
+            </select>
+        </div>
+
+        <!-- Report Issue Form -->
+        <div id="reportForm" class="form-modal" style="display:none">
+            <div class="form-content">
+                <h3>Report New Issue</h3>
+                <select id="issueDeviceSelect" required>
+                    <option value="">Select Device</option>
+                </select>
+                <select id="reporterSelect" required>
+                    <option value="">Reported By</option>
+                </select>
+                <textarea id="issueDescription" placeholder="Describe the issue in detail..." rows="5" required></textarea>
+                <div class="form-buttons">
+                    <button class="btn-primary" onclick="reportIssue()">Submit</button>
+                    <button class="btn-secondary" onclick="closeReportForm()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Update Status Dialog -->
+        <div id="updateDialog" class="form-modal" style="display:none">
+            <div class="form-content">
+                <h3>Update Issue Status</h3>
+                <p><strong>Device:</strong> <span id="updateDeviceName"></span></p>
+                <p><strong>Issue:</strong> <span id="updateIssueDesc"></span></p>
+                <select id="updateStatus">
+                    <option value="PENDING">PENDING</option>
+                    <option value="IN_PROGRESS">IN PROGRESS</option>
+                    <option value="RESOLVED">RESOLVED</option>
+                    <option value="CLOSED">CLOSED</option>
+                </select>
+                <textarea id="updateNotes" placeholder="Resolution notes"></textarea>
+                <div class="form-buttons">
+                    <button class="btn-primary" onclick="confirmUpdate()">Update</button>
+                    <button class="btn-secondary" onclick="closeUpdateDialog()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <table id="issuesTable">
+            <thead>
+                <tr><th>ID</th><th>Device</th><th>Reported By</th><th>Issue Description</th><th>Reported Date</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let allIssues = [];
+        let currentUpdateId = null;
+
+        function loadIssues() {
+            fetch('/api/issues')
+                .then(r => r.json())
+                .then(issues => {
+                    allIssues = issues;
+                    displayIssues(issues);
+                });
+        }
+
+        function displayIssues(issues) {
+            const tbody = document.querySelector('#issuesTable tbody');
+            tbody.innerHTML = '';
+            issues.forEach(issue => {
+                const shortDesc = issue.issueDescription.length > 50 ? issue.issueDescription.substring(0, 50) + '...' : issue.issueDescription;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${issue.id}</td>
+                        <td>${issue.device.brand} ${issue.device.model}</td>
+                        <td>${issue.reportedBy.name}</td>
+                        <td>${shortDesc}</td>
+                        <td>${issue.reportedDate}</td>
+                        <td><span class="status-badge status-pending">${issue.resolutionStatus}</span></td>
+                        <td>
+                            <button class="btn-edit" onclick="showUpdateDialog(${issue.id}, '${issue.device.brand} ${issue.device.model}', '${issue.issueDescription.replace(/'/g, "\\'")}', '${issue.resolutionStatus}')">Update</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function showReportForm() {
+            loadDevicesAndEmployeesForIssue();
+            document.getElementById('reportForm').style.display = 'flex';
+        }
+
+        function closeReportForm() { document.getElementById('reportForm').style.display = 'none'; }
+
+        function showUpdateDialog(id, deviceName, description, currentStatus) {
+            currentUpdateId = id;
+            document.getElementById('updateDeviceName').textContent = deviceName;
+            document.getElementById('updateIssueDesc').textContent = description;
+            document.getElementById('updateStatus').value = currentStatus;
+            document.getElementById('updateDialog').style.display = 'flex';
+        }
+
+        function closeUpdateDialog() { document.getElementById('updateDialog').style.display = 'none'; }
+
+        function loadDevicesAndEmployeesForIssue() {
+            fetch('/api/devices')
+                .then(r => r.json())
+                .then(data => {
+                    const deviceSelect = document.getElementById('issueDeviceSelect');
+                    deviceSelect.innerHTML = '<option value="">Select Device</option>';
+                    data.forEach(d => {
+                        deviceSelect.innerHTML += `<option value="${d.id}">${d.brand} ${d.model} (${d.serialNumber})</option>`;
+                    });
+                });
+            fetch('/api/employees')
+                .then(r => r.json())
+                .then(data => {
+                    const reporterSelect = document.getElementById('reporterSelect');
+                    reporterSelect.innerHTML = '<option value="">Select Employee</option>';
+                    data.forEach(e => {
+                        reporterSelect.innerHTML += `<option value="${e.id}">${e.name} (${e.employeeCode})</option>`;
+                    });
+                });
+        }
+
+        function reportIssue() {
+            const deviceId = document.getElementById('issueDeviceSelect').value;
+            const reportedBy = document.getElementById('reporterSelect').value;
+            const description = document.getElementById('issueDescription').value;
+
+            if(!deviceId || !reportedBy || !description) {
+                alert('Please fill all fields');
+                return;
+            }
+
+            fetch(`/api/issues/report?deviceId=${deviceId}&reportedByEmployeeId=${reportedBy}&issueDescription=${encodeURIComponent(description)}`, {
+                method: 'POST'
+            }).then(() => {
+                loadIssues();
+                closeReportForm();
+                document.getElementById('issueDescription').value = '';
+            }).catch(err => alert('Error: ' + err));
+        }
+
+        function confirmUpdate() {
+            const status = document.getElementById('updateStatus').value;
+            const notes = document.getElementById('updateNotes').value;
+
+            fetch(`/api/issues/${currentUpdateId}/status?status=${status}&resolutionNotes=${encodeURIComponent(notes)}`, {
+                method: 'PUT'
+            }).then(() => {
+                loadIssues();
+                closeUpdateDialog();
+                document.getElementById('updateNotes').value = '';
+            }).catch(err => alert('Error: ' + err));
+        }
+
+        function filterIssues() {
+            const filter = document.getElementById('filterStatus').value;
+            if(!filter) {
+                displayIssues(allIssues);
+            } else {
+                const filtered = allIssues.filter(i => i.resolutionStatus === filter);
+                displayIssues(filtered);
+            }
+        }
+
+        loadIssues();
+    </script>
+</body>
+</html>

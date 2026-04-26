@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Employees - Airtel Inventory</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Employee Management</h1>
+        
+        <nav class="nav-menu">
+            <a href="/">Dashboard</a>
+            <a href="/devices">Devices</a>
+            <a href="/employees">Employees</a>
+            <a href="/assignments">Assignments</a>
+            <a href="/issues">Issues</a>
+            <a href="/reports">Reports</a>
+            <a href="/logout" style="background: #dc3545;">Logout</a>
+        </nav>
+
+        <div class="toolbar">
+            <button class="btn-primary" onclick="showAddForm()">Add Employee</button>
+            <button class="btn-secondary" onclick="loadEmployees()">Refresh</button>
+            <input type="text" id="searchInput" placeholder="Search by name or code..." onkeyup="searchEmployees()">
+        </div>
+
+        <!-- Add Employee Form -->
+        <div id="addForm" class="form-modal" style="display:none">
+            <div class="form-content">
+                <h3>Add New Employee</h3>
+                <input type="text" id="employeeCode" placeholder="Employee Code" required>
+                <input type="text" id="name" placeholder="Full Name" required>
+                <input type="text" id="department" placeholder="Department">
+                <input type="text" id="designation" placeholder="Designation">
+                <input type="email" id="email" placeholder="Email">
+                <input type="tel" id="phone" placeholder="Phone Number">
+                <div class="form-buttons">
+                    <button class="btn-primary" onclick="saveEmployee()">Save</button>
+                    <button class="btn-secondary" onclick="closeAddForm()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit Employee Form -->
+        <div id="editForm" class="form-modal" style="display:none">
+            <div class="form-content">
+                <h3>Edit Employee</h3>
+                <input type="hidden" id="editId">
+                <input type="text" id="editEmployeeCode" placeholder="Employee Code" readonly>
+                <input type="text" id="editName" placeholder="Full Name">
+                <input type="text" id="editDepartment" placeholder="Department">
+                <input type="text" id="editDesignation" placeholder="Designation">
+                <input type="email" id="editEmail" placeholder="Email">
+                <input type="tel" id="editPhone" placeholder="Phone Number">
+                <div class="form-buttons">
+                    <button class="btn-primary" onclick="updateEmployee()">Update</button>
+                    <button class="btn-secondary" onclick="closeEditForm()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <table id="employeesTable">
+            <thead>
+                <tr><th>ID</th><th>Employee Code</th><th>Name</th><th>Department</th><th>Email</th><th>Phone</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let allEmployees = [];
+
+        function loadEmployees() {
+            fetch('/api/employees')
+                .then(r => r.json())
+                .then(employees => {
+                    allEmployees = employees;
+                    displayEmployees(employees);
+                });
+        }
+
+        function displayEmployees(employees) {
+            const tbody = document.querySelector('#employeesTable tbody');
+            tbody.innerHTML = '';
+            employees.forEach(emp => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${emp.id}</td>
+                        <td>${emp.employeeCode}</td>
+                        <td>${emp.name}</td>
+                        <td>${emp.department || '-'}</td>
+                        <td>${emp.email || '-'}</td>
+                        <td>${emp.phone || '-'}</td>
+                        <td>
+                            <button class="btn-edit" onclick="editEmployee(${emp.id})">Edit</button>
+                            <button class="btn-delete" onclick="deleteEmployee(${emp.id})">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function showAddForm() { document.getElementById('addForm').style.display = 'flex'; }
+        function closeAddForm() { document.getElementById('addForm').style.display = 'none'; }
+        function closeEditForm() { document.getElementById('editForm').style.display = 'none'; }
+
+        function saveEmployee() {
+            const employee = {
+                employeeCode: document.getElementById('employeeCode').value,
+                name: document.getElementById('name').value,
+                department: document.getElementById('department').value,
+                designation: document.getElementById('designation').value,
+                email: document.getElementById('email').value,
+                phone: document.getElementById('phone').value
+            };
+            fetch('/api/employees', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(employee)
+            }).then(() => {
+                loadEmployees();
+                closeAddForm();
+                clearForm();
+            }).catch(err => alert('Error: ' + err));
+        }
+
+        function editEmployee(id) {
+            fetch(`/api/employees/${id}`)
+                .then(r => r.json())
+                .then(emp => {
+                    document.getElementById('editId').value = emp.id;
+                    document.getElementById('editEmployeeCode').value = emp.employeeCode;
+                    document.getElementById('editName').value = emp.name;
+                    document.getElementById('editDepartment').value = emp.department || '';
+                    document.getElementById('editDesignation').value = emp.designation || '';
+                    document.getElementById('editEmail').value = emp.email || '';
+                    document.getElementById('editPhone').value = emp.phone || '';
+                    document.getElementById('editForm').style.display = 'flex';
+                });
+        }
+
+        function updateEmployee() {
+            const id = document.getElementById('editId').value;
+            const employee = {
+                employeeCode: document.getElementById('editEmployeeCode').value,
+                name: document.getElementById('editName').value,
+                department: document.getElementById('editDepartment').value,
+                designation: document.getElementById('editDesignation').value,
+                email: document.getElementById('editEmail').value,
+                phone: document.getElementById('editPhone').value
+            };
+            fetch(`/api/employees/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(employee)
+            }).then(() => {
+                loadEmployees();
+                closeEditForm();
+            }).catch(err => alert('Error: ' + err));
+        }
+
+        function deleteEmployee(id) {
+            if(confirm('Are you sure you want to delete this employee?')) {
+                fetch(`/api/employees/${id}`, {method: 'DELETE'})
+                    .then(() => loadEmployees())
+                    .catch(err => alert('Error: ' + err));
+            }
+        }
+
+        function searchEmployees() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allEmployees.filter(e => 
+                e.name.toLowerCase().includes(search) || 
+                e.employeeCode.toLowerCase().includes(search)
+            );
+            displayEmployees(filtered);
+        }
+
+        function clearForm() {
+            document.getElementById('employeeCode').value = '';
+            document.getElementById('name').value = '';
+            document.getElementById('department').value = '';
+            document.getElementById('designation').value = '';
+            document.getElementById('email').value = '';
+            document.getElementById('phone').value = '';
+        }
+
+        loadEmployees();
+    </script>
+</body>
+</html>

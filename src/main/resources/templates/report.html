@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Reports - Airtel Inventory</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Reports & Analytics</h1>
+        
+        <nav class="nav-menu">
+            <a href="/">Dashboard</a>
+            <a href="/devices">Devices</a>
+            <a href="/employees">Employees</a>
+            <a href="/assignments">Assignments</a>
+            <a href="/issues">Issues</a>
+            <a href="/reports">Reports</a>
+            <a href="/logout" style="background: #dc3545;">Logout</a>
+        </nav>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>Devices by Status</h3>
+                <canvas id="statusChart" width="350" height="250"></canvas>
+            </div>
+            <div class="card">
+                <h3>Quick Statistics</h3>
+                <div id="stats" style="text-align: left; padding: 10px;"></div>
+            </div>
+            <div class="card">
+                <h3>Recent Activity</h3>
+                <div id="recentActivity" style="text-align: left; padding: 10px;"></div>
+            </div>
+        </div>
+
+        <div class="developer-credit">
+            <p><strong>Group GA6</strong> | Developed by: Christian MUNEZA (24RP12634) & Marie Belyse NIYITANGA (24RP03282)</p>
+        </div>
+    </div>
+
+    <script>
+        // Load Devices by Status for Chart
+        fetch('/api/devices')
+            .then(r => r.json())
+            .then(devices => {
+                const statusCounts = {
+                    'AVAILABLE': 0,
+                    'ASSIGNED': 0,
+                    'UNDER_MAINTENANCE': 0,
+                    'LOST': 0,
+                    'RETIRED': 0
+                };
+                devices.forEach(d => statusCounts[d.currentStatus]++);
+                
+                const ctx = document.getElementById('statusChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(statusCounts),
+                        datasets: [{
+                            label: 'Number of Devices',
+                            data: Object.values(statusCounts),
+                            backgroundColor: ['#28a745', '#007bff', '#ffc107', '#dc3545', '#6c757d'],
+                            borderRadius: 5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                    }
+                });
+
+                // Update statistics
+                const statsDiv = document.getElementById('stats');
+                statsDiv.innerHTML = `
+                    <p><strong>Total Devices:</strong> ${devices.length}</p>
+                    <p><strong>Available:</strong> ${statusCounts['AVAILABLE']}</p>
+                    <p><strong>Assigned:</strong> ${statusCounts['ASSIGNED']}</p>
+                    <p><strong>Under Maintenance:</strong> ${statusCounts['UNDER_MAINTENANCE']}</p>
+                `;
+            });
+
+        // Load Employees count
+        fetch('/api/employees')
+            .then(r => r.json())
+            .then(employees => {
+                const statsDiv = document.getElementById('stats');
+                statsDiv.innerHTML += `<p><strong>Total Employees:</strong> ${employees.length}</p>`;
+            });
+
+        // Load Active Assignments
+        fetch('/api/assignments/active')
+            .then(r => r.json())
+            .then(assignments => {
+                const statsDiv = document.getElementById('stats');
+                statsDiv.innerHTML += `<p><strong>Active Assignments:</strong> ${assignments.length}</p>`;
+                
+                const recentDiv = document.getElementById('recentActivity');
+                recentDiv.innerHTML = '<h4>Active Assignments</h4>';
+                assignments.slice(0, 5).forEach(a => {
+                    recentDiv.innerHTML += `<p>${a.device.brand} ${a.device.model} → ${a.employee.name}</p>`;
+                });
+            });
+
+        // Load Pending Issues
+        fetch('/api/issues/pending')
+            .then(r => r.json())
+            .then(issues => {
+                const statsDiv = document.getElementById('stats');
+                statsDiv.innerHTML += `<p><strong>Pending Issues:</strong> ${issues.length}</p>`;
+                
+                const recentDiv = document.getElementById('recentActivity');
+                recentDiv.innerHTML += '<h4>Pending Issues</h4>';
+                issues.slice(0, 3).forEach(i => {
+                    recentDiv.innerHTML += `<p>${i.device.brand} ${i.device.model}: ${i.issueDescription.substring(0, 50)}...</p>`;
+                });
+            });
+    </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Airtel Inventory System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Airtel Inventory Management System</h1>
+        
+        <nav class="nav-menu">
+            <a href="/">Dashboard</a>
+            <a href="/devices">Devices</a>
+            <a href="/employees">Employees</a>
+            <a href="/assignments">Assignments</a>
+            <a href="/issues">Issues</a>
+            <a href="/reports">Reports</a>
+            <a href="/logout" style="background: #dc3545;">Logout</a>
+        </nav>
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>Total Devices</h3>
+                <p class="count" id="totalDevices">-</p>
+            </div>
+            <div class="card">
+                <h3>Total Employees</h3>
+                <p class="count" id="totalEmployees">-</p>
+            </div>
+            <div class="card">
+                <h3>Active Assignments</h3>
+                <p class="count" id="activeAssignments">-</p>
+            </div>
+            <div class="card">
+                <h3>Pending Issues</h3>
+                <p class="count" id="pendingIssues">-</p>
+            </div>
+            <div class="card">
+                <h3>Available Devices</h3>
+                <p class="count" id="availableDevices">-</p>
+            </div>
+            <div class="card">
+                <h3>Under Maintenance</h3>
+                <p class="count" id="maintenanceDevices">-</p>
+            </div>
+        </div>
+
+        <div class="welcome-section">
+            <h2>Welcome to Airtel Inventory System</h2>
+            <p>Manage your end-user equipment efficiently with real-time tracking and reporting.</p>
+        </div>
+
+        <div class="developer-credit">
+            <p><strong>Group GA6</strong></p>
+            <p><strong>Developed by:</strong> Christian MUNEZA (24RP12634) & Marie Belyse NIYITANGA (24RP03282)</p>
+            <p>Airtel Inventory Management System | Spring Boot MVC Application</p>
+        </div>
+    </div>
+
+    <script>
+        fetch('/api/devices').then(r => r.json()).then(data => {
+            document.getElementById('totalDevices').textContent = data.length;
+            document.getElementById('availableDevices').textContent = data.filter(d => d.currentStatus === 'AVAILABLE').length;
+            document.getElementById('maintenanceDevices').textContent = data.filter(d => d.currentStatus === 'UNDER_MAINTENANCE').length;
+        }).catch(err => console.error('Error loading devices:', err));
+        
+        fetch('/api/employees').then(r => r.json()).then(data => {
+            document.getElementById('totalEmployees').textContent = data.length;
+        }).catch(err => console.error('Error loading employees:', err));
+        
+        fetch('/api/assignments/active').then(r => r.json()).then(data => {
+            document.getElementById('activeAssignments').textContent = data.length;
+        }).catch(err => console.error('Error loading assignments:', err));
+        
+        fetch('/api/issues/pending').then(r => r.json()).then(data => {
+            document.getElementById('pendingIssues').textContent = data.length;
+        }).catch(err => console.error('Error loading issues:', err));
+    </script>
+</body>
+</html>

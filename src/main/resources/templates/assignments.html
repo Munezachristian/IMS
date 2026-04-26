@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Assignments - Airtel Inventory</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Device Assignment Management</h1>
+        
+        <nav class="nav-menu">
+            <a href="/">Dashboard</a>
+            <a href="/devices">Devices</a>
+            <a href="/employees">Employees</a>
+            <a href="/assignments">Assignments</a>
+            <a href="/issues">Issues</a>
+            <a href="/reports">Reports</a>
+            <a href="/logout" style="background: #dc3545;">Logout</a>
+        </nav>
+
+        <div class="toolbar">
+            <button class="btn-primary" onclick="showAssignForm()">Assign Device</button>
+            <button class="btn-secondary" onclick="loadAssignments()">Refresh</button>
+            <button class="btn-secondary" onclick="showActiveOnly()">Show Active Only</button>
+        </div>
+
+        <!-- Assign Device Form -->
+        <div id="assignForm" class="form-modal" style="display:none">
+            <div class="form-content">
+                <h3>Assign Device to Employee</h3>
+                <select id="deviceSelect" required>
+                    <option value="">Select Device</option>
+                </select>
+                <select id="employeeSelect" required>
+                    <option value="">Select Employee</option>
+                </select>
+                <select id="conditionSelect">
+                    <option value="NEW">NEW</option>
+                    <option value="GOOD">GOOD</option>
+                    <option value="FAIR">FAIR</option>
+                    <option value="POOR">POOR</option>
+                    <option value="DAMAGED">DAMAGED</option>
+                </select>
+                <textarea id="remarks" placeholder="Remarks (optional)"></textarea>
+                <div class="form-buttons">
+                    <button class="btn-primary" onclick="assignDevice()">Assign</button>
+                    <button class="btn-secondary" onclick="closeAssignForm()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Return Confirmation Dialog -->
+        <div id="returnDialog" class="form-modal" style="display:none">
+            <div class="form-content">
+                <h3>Return Device</h3>
+                <p><strong>Device:</strong> <span id="returnDeviceName"></span></p>
+                <p><strong>Assigned To:</strong> <span id="returnEmployeeName"></span></p>
+                <select id="returnCondition">
+                    <option value="NEW">NEW</option>
+                    <option value="GOOD">GOOD</option>
+                    <option value="FAIR">FAIR</option>
+                    <option value="POOR">POOR</option>
+                    <option value="DAMAGED">DAMAGED</option>
+                </select>
+                <textarea id="returnRemarks" placeholder="Return Remarks"></textarea>
+                <div class="form-buttons">
+                    <button class="btn-primary" onclick="confirmReturn()">Confirm Return</button>
+                    <button class="btn-secondary" onclick="closeReturnDialog()">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <table id="assignmentsTable">
+            <thead>
+                <tr><th>ID</th><th>Device</th><th>Employee</th><th>Assigned Date</th><th>Returned Date</th><th>Condition</th><th>Actions</th></tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        let allAssignments = [];
+        let currentReturnId = null;
+
+        function loadAssignments() {
+            fetch('/api/assignments')
+                .then(r => r.json())
+                .then(assignments => {
+                    allAssignments = assignments;
+                    displayAssignments(assignments);
+                });
+        }
+
+        function displayAssignments(assignments) {
+            const tbody = document.querySelector('#assignmentsTable tbody');
+            tbody.innerHTML = '';
+            assignments.forEach(assign => {
+                const returnedDate = assign.returnedDate ? assign.returnedDate : '<span class="status-badge status-active">Active</span>';
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${assign.id}</td>
+                        <td>${assign.device.brand} ${assign.device.model}</td>
+                        <td>${assign.employee.name}</td>
+                        <td>${assign.assignedDate}</td>
+                        <td>${returnedDate}</td>
+                        <td>${assign.conditionOnAssign}</td>
+                        <td>
+                            ${!assign.returnedDate ? `<button class="btn-warning" onclick="showReturnDialog(${assign.id}, '${assign.device.brand} ${assign.device.model}', '${assign.employee.name}')">Return</button>` : '-'}
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function showAssignForm() {
+            loadDevicesAndEmployees();
+            document.getElementById('assignForm').style.display = 'flex';
+        }
+
+        function closeAssignForm() { document.getElementById('assignForm').style.display = 'none'; }
+
+        function showReturnDialog(id, deviceName, employeeName) {
+            currentReturnId = id;
+            document.getElementById('returnDeviceName').textContent = deviceName;
+            document.getElementById('returnEmployeeName').textContent = employeeName;
+            document.getElementById('returnDialog').style.display = 'flex';
+        }
+
+        function closeReturnDialog() { document.getElementById('returnDialog').style.display = 'none'; }
+
+        function loadDevicesAndEmployees() {
+            fetch('/api/devices')
+                .then(r => r.json())
+                .then(data => {
+                    const devices = data.filter(d => d.currentStatus === 'AVAILABLE');
+                    const deviceSelect = document.getElementById('deviceSelect');
+                    deviceSelect.innerHTML = '<option value="">Select Device</option>';
+                    devices.forEach(d => {
+                        deviceSelect.innerHTML += `<option value="${d.id}">${d.brand} ${d.model} (${d.serialNumber})</option>`;
+                    });
+                });
+            fetch('/api/employees')
+                .then(r => r.json())
+                .then(data => {
+                    const employeeSelect = document.getElementById('employeeSelect');
+                    employeeSelect.innerHTML = '<option value="">Select Employee</option>';
+                    data.forEach(e => {
+                        employeeSelect.innerHTML += `<option value="${e.id}">${e.name} (${e.employeeCode})</option>`;
+                    });
+                });
+        }
+
+        function assignDevice() {
+            const deviceId = document.getElementById('deviceSelect').value;
+            const employeeId = document.getElementById('employeeSelect').value;
+            const condition = document.getElementById('conditionSelect').value;
+            const remarks = document.getElementById('remarks').value;
+            
+            if(!deviceId || !employeeId) {
+                alert('Please select both device and employee');
+                return;
+            }
+            
+            fetch(`/api/assignments/assign?deviceId=${deviceId}&employeeId=${employeeId}&condition=${condition}&remarks=${remarks}`, {
+                method: 'POST'
+            }).then(() => {
+                loadAssignments();
+                closeAssignForm();
+                document.getElementById('remarks').value = '';
+            }).catch(err => alert('Error: ' + err));
+        }
+
+        function confirmReturn() {
+            const condition = document.getElementById('returnCondition').value;
+            const remarks = document.getElementById('returnRemarks').value;
+            
+            fetch(`/api/assignments/return/${currentReturnId}?condition=${condition}&remarks=${remarks}`, {
+                method: 'PUT'
+            }).then(() => {
+                loadAssignments();
+                closeReturnDialog();
+                document.getElementById('returnRemarks').value = '';
+            }).catch(err => alert('Error: ' + err));
+        }
+
+        function showActiveOnly() {
+            const active = allAssignments.filter(a => !a.returnedDate);
+            displayAssignments(active);
+        }
+
+        loadAssignments();
+    </script>
+</body>
+</html>
